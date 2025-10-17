@@ -42,7 +42,7 @@ class GameUIComponents:
     def _load_background(self) -> Optional[pygame.Surface]:
         """Load background image if available."""
         try:
-            bg = pygame.image.load("core/images/general_background.png")
+            bg = pygame.image.load("core/assets/images/general_background.png")
             return pygame.transform.scale(bg, (self.WIDTH, self.HEIGHT))
         except Exception as e:
             print(f"Could not load background image: {e}")

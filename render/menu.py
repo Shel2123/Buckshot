@@ -29,8 +29,8 @@ class MenuScreen:
         self.background = self._load_background()
 
         # Load character images
-        self.player_image = self._load_image("core/images/player_pixel.png", (120, 120))
-        self.dealer_image = self._load_image("core/images/dealer_pixel.png", (120, 120))
+        self.player_image = self._load_image("core/assets/images/player_pixel.png", (120, 120))
+        self.dealer_image = self._load_image("core/assets/images/dealer_pixel.png", (120, 120))
 
     def _load_background(self) -> Optional[pygame.Surface]:
         """Load background image if available."""
