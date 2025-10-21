@@ -39,7 +39,7 @@ class TrainingConfig:
     """Configuration for the training loop."""
     # Training - optimized for speed
     total_timesteps_per_generation: int = 100_000
-    learning_rate: float = 3e-4
+    learning_rate: float = 1e-4
     n_steps: int = 4096  # Increased from 2048 - collect more steps before update (less overhead)
     batch_size: int = 256  # Increased from 64 - larger batches are more efficient
     n_epochs: int = 4  # Reduced from 10 - fewer epochs per update (faster)
@@ -53,10 +53,10 @@ class TrainingConfig:
     # Environment
     n_envs: int = 16  # Parallel environments
 
-    # Evaluation
-    eval_random_episodes: int = 1000
-    eval_champion_episodes: int = 10000
-    win_threshold: float = 0.5+1e-5  # Challenger must win 50%+ to dethrone
+    eval_random_episodes: int = 2500  # 5k pairs = 10k total games with CRN
+    eval_champion_episodes: int = 25000  # 20k pairs = 40k total games with CRN
+    win_threshold: float = 0.5025 #50.25% for improvement
+    use_paired_evaluation: bool = True  # Use CRN for variance reduction
 
     # Opponent pool
     pool_size: int = 10  # Keep last N champions
@@ -170,67 +170,144 @@ def load_policy_for_env(model_path: str, use_cache: bool = True, deterministic: 
     return policy
 
 
-def evaluate_model(model: MaskablePPO, opponent_policy=None, n_episodes: int = 100, deterministic: bool = True, seed: int = 0) -> dict:
+def evaluate_model(model: MaskablePPO, opponent_policy=None, n_episodes: int = 100, deterministic: bool = True, seed: int = 0, use_paired_games: bool = False) -> dict:
     """
-    Evaluate a model against an opponent.
+    Evaluate a model against an opponent, optionally using paired games with Common Random Numbers.
 
     Args:
         model: The model to evaluate
         opponent_policy: Opponent policy (None for random)
-        n_episodes: Number of episodes to run
+        n_episodes: Number of episode pairs to run (total games = n_episodes * 2 if use_paired_games=True)
         deterministic: Whether to use deterministic actions
         seed: Random seed for evaluation
+        use_paired_games: If True, runs paired games with role swapping for variance reduction
 
     Returns:
         Dict with wins, losses, draws, win_rate
     """
-    env = BuckshotRouletteEnv(opponent_policy=opponent_policy)
-
     wins = 0
     losses = 0
     draws = 0
 
-    # Pre-allocate for faster checking
-    for i in tqdm(range(n_episodes), desc="Evaluating", leave=False, mininterval=0.5):
-        obs, _ = env.reset(seed=seed + i)
-        done = False
-        step_count = 0
-        max_steps = 1000  # Safety limit
+    if use_paired_games:
+        # Run paired games with Common Random Numbers (CRN) for variance reduction
+        # Each pair uses the same seed but swaps agent roles
+        # Pre-allocate both environments to reuse them (optimization)
+        env_as_player = BuckshotRouletteEnv(opponent_policy=opponent_policy, force_agent_as_player=True)
+        env_as_dealer = BuckshotRouletteEnv(opponent_policy=opponent_policy, force_agent_as_player=False)
 
-        while not done and step_count < max_steps:
-            action_masks = env.action_masks()
-            action, _ = model.predict(obs, action_masks=action_masks, deterministic=deterministic)
-            action = int(action)
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            step_count += 1
+        n_pairs = n_episodes
+        total_games = n_pairs * 2
 
-        # Optimized result checking
-        player_hp = env.game.player.hp
-        dealer_hp = env.game.dealer.hp
+        # Verification logging for first pair only
+        verify_first_pair = False
 
-        if player_hp <= 0 and dealer_hp <= 0:
-            draws += 1
-        elif env._agent_is_player:
-            if dealer_hp <= 0:
-                wins += 1
-            else:
-                losses += 1
-        else:  # Agent is dealer
-            if player_hp <= 0:
-                wins += 1
-            else:
-                losses += 1
+        # Pre-allocate for faster checking
+        for i in tqdm(range(n_pairs), desc="Evaluating", leave=False, mininterval=0.5):
+            pair_seed = seed + i
 
-    win_rate = wins / n_episodes if n_episodes > 0 else 0.0
+            # Game 1: Agent as Player
+            obs1, _ = env_as_player.reset(seed=pair_seed)
 
-    return {
-        'wins': wins,
-        'losses': losses,
-        'draws': draws,
-        'win_rate': win_rate,
-        'total_episodes': n_episodes
-    }
+            # Game 2: Agent as Dealer (same seed!)
+            obs2, _ = env_as_dealer.reset(seed=pair_seed)
+
+            # Verification: Print initial states of first pair to confirm identical game state
+            if verify_first_pair and i == 0:
+                print(f"\n[CRN Verification - Pair {i}, Seed {pair_seed}]")
+                print(f"  Game 1 (Agent=Player): bullets={env_as_player.game.bullet_sequence}, "
+                      f"player_hp={env_as_player.game.player.hp}, dealer_hp={env_as_player.game.dealer.hp}, "
+                      f"turn={env_as_player.game.turn.name}")
+                print(f"  Game 2 (Agent=Dealer): bullets={env_as_dealer.game.bullet_sequence}, "
+                      f"player_hp={env_as_dealer.game.player.hp}, dealer_hp={env_as_dealer.game.dealer.hp}, "
+                      f"turn={env_as_dealer.game.turn.name}")
+                print(f"  Bullets match: {env_as_player.game.bullet_sequence == env_as_dealer.game.bullet_sequence}\n")
+                verify_first_pair = False
+
+            # Play both games (optimized loop)
+            for env, obs in [(env_as_player, obs1), (env_as_dealer, obs2)]:
+                done = False
+                step_count = 0
+                max_steps = 1000  # Safety limit
+
+                while not done and step_count < max_steps:
+                    action_masks = env.action_masks()
+                    action, _ = model.predict(obs, action_masks=action_masks, deterministic=deterministic)
+                    action = int(action)
+                    obs, reward, terminated, truncated, info = env.step(action)
+                    done = terminated or truncated
+                    step_count += 1
+
+                # Optimized result checking
+                player_hp = env.game.player.hp
+                dealer_hp = env.game.dealer.hp
+
+                if player_hp <= 0 and dealer_hp <= 0:
+                    draws += 1
+                elif env._agent_is_player:
+                    if dealer_hp <= 0:
+                        wins += 1
+                    else:
+                        losses += 1
+                else:  # Agent is dealer
+                    if player_hp <= 0:
+                        wins += 1
+                    else:
+                        losses += 1
+
+        win_rate = wins / total_games if total_games > 0 else 0.0
+        return {
+            'wins': wins,
+            'losses': losses,
+            'draws': draws,
+            'win_rate': win_rate,
+            'total_episodes': total_games
+        }
+    else:
+        # Original single-game evaluation (backwards compatible)
+        env = BuckshotRouletteEnv(opponent_policy=opponent_policy)
+
+        # Pre-allocate for faster checking
+        for i in tqdm(range(n_episodes), desc="Evaluating", leave=False, mininterval=0.5):
+            obs, _ = env.reset(seed=seed + i)
+            done = False
+            step_count = 0
+            max_steps = 1000  # Safety limit
+
+            while not done and step_count < max_steps:
+                action_masks = env.action_masks()
+                action, _ = model.predict(obs, action_masks=action_masks, deterministic=deterministic)
+                action = int(action)
+                obs, reward, terminated, truncated, info = env.step(action)
+                done = terminated or truncated
+                step_count += 1
+
+            # Optimized result checking
+            player_hp = env.game.player.hp
+            dealer_hp = env.game.dealer.hp
+
+            if player_hp <= 0 and dealer_hp <= 0:
+                draws += 1
+            elif env._agent_is_player:
+                if dealer_hp <= 0:
+                    wins += 1
+                else:
+                    losses += 1
+            else:  # Agent is dealer
+                if player_hp <= 0:
+                    wins += 1
+                else:
+                    losses += 1
+
+        win_rate = wins / n_episodes if n_episodes > 0 else 0.0
+
+        return {
+            'wins': wins,
+            'losses': losses,
+            'draws': draws,
+            'win_rate': win_rate,
+            'total_episodes': n_episodes
+        }
 
 
 class OpponentPool:
@@ -414,14 +491,16 @@ def evaluate_challenger(
     eval_seed = config.seed + generation * 10000
 
     # Match 1: Baseline against random
-    print(f"\nMatch 1: Challenger vs Random Opponent ({config.eval_random_episodes} games)")
+    games_desc = f"{config.eval_random_episodes} pairs ({config.eval_random_episodes * 2} games)" if config.use_paired_evaluation else f"{config.eval_random_episodes} games"
+    print(f"\nMatch 1: Challenger vs Random Opponent ({games_desc})")
     t0 = time.time()
     random_results = evaluate_model(
         challenger,
         opponent_policy=None,
         n_episodes=config.eval_random_episodes,
         deterministic=True,
-        seed=eval_seed
+        seed=eval_seed,
+        use_paired_games=config.use_paired_evaluation
     )
     eval_time = time.time() - t0
     print(f"  Wins: {random_results['wins']}/{random_results['total_episodes']} "
@@ -439,7 +518,8 @@ def evaluate_challenger(
         print(f"\n  No existing champion - Challenger promoted by default!")
         return True
 
-    print(f"\nMatch 2: Challenger vs Champion ({config.eval_champion_episodes} games)")
+    games_desc = f"{config.eval_champion_episodes} pairs ({config.eval_champion_episodes * 2} games)" if config.use_paired_evaluation else f"{config.eval_champion_episodes} games"
+    print(f"\nMatch 2: Challenger vs Champion ({games_desc})")
     t0 = time.time()
     champion_policy = load_policy_for_env(str(champion_path), deterministic=True)
     champion_results = evaluate_model(
@@ -447,7 +527,8 @@ def evaluate_challenger(
         opponent_policy=champion_policy,
         n_episodes=config.eval_champion_episodes,
         deterministic=True,
-        seed=eval_seed + 100000
+        seed=eval_seed + 100000,
+        use_paired_games=config.use_paired_evaluation
     )
     eval_time = time.time() - t0
     print(f"  Wins: {champion_results['wins']}/{champion_results['total_episodes']} "

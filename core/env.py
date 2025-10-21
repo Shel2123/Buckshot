@@ -17,15 +17,19 @@ class BuckshotRouletteEnv(gym.Env):
 
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, opponent_policy: Optional[Callable] = None):
+    def __init__(self, opponent_policy: Optional[Callable] = None, force_agent_as_player: Optional[bool] = None):
         """
         Args:
             opponent_policy: Callable that takes (obs, action_mask) and returns an action index.
                            If None, opponent takes random valid actions.
+            force_agent_as_player: If provided, forces agent role assignment:
+                                  True = agent is always Player, False = agent is always Dealer
+                                  None = random assignment (default behavior)
         """
         super().__init__()
 
         self.opponent_policy = opponent_policy
+        self.force_agent_as_player = force_agent_as_player
         self.game = BuckshotRouletteGame()
 
         # Define action and observation spaces
@@ -160,8 +164,12 @@ class BuckshotRouletteEnv(gym.Env):
         self.game = BuckshotRouletteGame(rng_seed=seed)
         self.game.start_new_round()
 
-        # Randomly assign agent to player or dealer using RNG
-        self._agent_is_player = rng.choice([True, False])
+        # Assign agent role - either forced or random
+        if self.force_agent_as_player is not None:
+            self._agent_is_player = self.force_agent_as_player
+        else:
+            # Randomly assign agent to player or dealer using RNG
+            self._agent_is_player = rng.choice([True, False])
 
         # Randomly decide who goes first (independent of role assignment)
         agent_goes_first = rng.choice([True, False])
