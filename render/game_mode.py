@@ -2,7 +2,7 @@
 
 import pygame
 import numpy as np
-from typing import Callable, Optional
+from typing import Callable
 from sb3_contrib import MaskablePPO
 
 from core.game import BuckshotRouletteGame
@@ -10,14 +10,31 @@ from core.constants import GameAction, Turn
 from render.game_ui import GameUIComponents
 from render.game_logic import GameLogic
 from render.game_state import GameModeConfig, GameStats
-from render.colors import *
+from render.colors import (
+    DARK_RED,
+    DARK_GRAY,
+    BLUE,
+    BLACK,
+    WHITE,
+    GOLD,
+    YELLOW,
+    GRAY,
+    GREEN,
+    RED,
+    LIGHT_GRAY,
+)
 
 
 class GameMode:
     """Unified game mode that handles both Player vs AI and AI vs AI."""
 
-    def __init__(self, screen: pygame.Surface, model: MaskablePPO,
-                 config: GameModeConfig, on_back_to_menu: Callable[[], None]):
+    def __init__(
+        self,
+        screen: pygame.Surface,
+        model: MaskablePPO,
+        config: GameModeConfig,
+        on_back_to_menu: Callable[[], None],
+    ):
         """Initialize game mode.
 
         Args:
@@ -39,7 +56,7 @@ class GameMode:
         self.stats = GameStats(config.is_pvp)
 
         # Game state
-        self.game = BuckshotRouletteGame(np.random.seed())
+        self.game = BuckshotRouletteGame(np.random.seed())  # type: ignore
         self.game.start_new_round()
 
         # UI state
@@ -87,11 +104,19 @@ class GameMode:
         """
         # Determine actor name
         if is_player_turn:
-            actor_name = self.config.player_name.upper() if self.config.is_pvp else self.config.player_name
-            target_name = self.config.dealer_name.split()[0]  # Get first word (CHAMPION or DEALER)
+            actor_name = (
+                self.config.player_name.upper()
+                if self.config.is_pvp
+                else self.config.player_name
+            )
+            target_name = self.config.dealer_name.split()[
+                0
+            ]  # Get first word (CHAMPION or DEALER)
         else:
             actor_name = self.config.dealer_name.split()[0]  # CHAMPION or DEALER
-            target_name = self.config.player_name.split()[0] if self.config.is_pvp else "PLAYER"
+            target_name = (
+                self.config.player_name.split()[0] if self.config.is_pvp else "PLAYER"
+            )
 
         # Track ejected bullet
         ejected_bullet = None
@@ -101,7 +126,9 @@ class GameMode:
         step_result = self.game.step(action)
 
         # Format message
-        msg = GameLogic.format_action_message(actor_name, target_name, action, ejected_bullet)
+        msg = GameLogic.format_action_message(
+            actor_name, target_name, action, ejected_bullet
+        )
 
         # Add damage info
         if action in [GameAction.SHOOT_SELF, GameAction.SHOOT_TARGET]:
@@ -137,7 +164,7 @@ class GameMode:
 
     def _restart_game(self):
         """Restart the game."""
-        self.game = BuckshotRouletteGame(np.random.seed())
+        self.game = BuckshotRouletteGame(np.random.seed())  # type: ignore
         self.game.start_new_round()
         self.game_over = False
         self.message = ""
@@ -247,16 +274,22 @@ class GameMode:
         player_label = "Your HP" if self.config.is_pvp else "Player HP"
         dealer_label = "Champion HP" if self.config.is_pvp else "Dealer HP"
 
-        player_score = self.ui.normal_font.render(f"{player_label}: {player_hp}", True, WHITE)
+        player_score = self.ui.normal_font.render(
+            f"{player_label}: {player_hp}", True, WHITE
+        )
         self.screen.blit(player_score, (self.WIDTH // 2 - 100, score_y))
 
-        dealer_score = self.ui.normal_font.render(f"{dealer_label}: {dealer_hp}", True, WHITE)
+        dealer_score = self.ui.normal_font.render(
+            f"{dealer_label}: {dealer_hp}", True, WHITE
+        )
         self.screen.blit(dealer_score, (self.WIDTH // 2 - 100, score_y + 40))
 
         # Buttons
         if not self.config.is_pvp:
             # Watch mode - auto restart message
-            restart_text = self.ui.small_font.render("Restarting in 1...", True, LIGHT_GRAY)
+            restart_text = self.ui.small_font.render(
+                "Restarting in 1...", True, LIGHT_GRAY
+            )
             self.screen.blit(restart_text, (self.WIDTH // 2 - 80, 380))
 
         # Play again button
@@ -278,9 +311,7 @@ class GameMode:
 
         # Stats header
         self.ui.draw_stats_header(
-            self.stats.get_stats_text(),
-            self.game.round,
-            self.game.sub_round
+            self.stats.get_stats_text(), self.game.round, self.game.sub_round
         )
 
         # Entity sections
@@ -290,7 +321,7 @@ class GameMode:
             100,
             GREEN,
             show_items=True,
-            bullet_sequence=self.game.bullet_sequence
+            bullet_sequence=self.game.bullet_sequence,
         )
 
         self.ui.draw_entity_section(
@@ -299,7 +330,7 @@ class GameMode:
             350,
             RED,
             show_items=self.config.show_dealer_items,
-            bullet_sequence=self.game.bullet_sequence
+            bullet_sequence=self.game.bullet_sequence,
         )
 
         # Bullet info and turn indicator
@@ -344,13 +375,19 @@ class GameMode:
                 mouse_pos = pygame.mouse.get_pos()
 
                 # Back to menu button (works anytime except game over)
-                if not self.game_over and self.back_to_menu_rect and self.back_to_menu_rect.collidepoint(mouse_pos):
+                if (
+                    not self.game_over
+                    and self.back_to_menu_rect
+                    and self.back_to_menu_rect.collidepoint(mouse_pos)
+                ):
                     self.on_back_to_menu()
                     return True
 
                 if self.game_over:
                     # Game over buttons
-                    if self.play_again_rect and self.play_again_rect.collidepoint(mouse_pos):
+                    if self.play_again_rect and self.play_again_rect.collidepoint(
+                        mouse_pos
+                    ):
                         self._restart_game()
                     elif self.menu_rect and self.menu_rect.collidepoint(mouse_pos):
                         self.on_back_to_menu()
@@ -376,10 +413,14 @@ class GameMode:
                     if not menu_rect.collidepoint(mouse_pos):
                         self.show_action_menu = False
 
-                elif self.action_button_rect and self.action_button_rect.collidepoint(mouse_pos):
+                elif self.action_button_rect and self.action_button_rect.collidepoint(
+                    mouse_pos
+                ):
                     # Open action menu
                     if self.game.turn == Turn.PLAYER and not self.game_over:
-                        self.available_actions = GameLogic.get_available_actions(self.game)
+                        self.available_actions = GameLogic.get_available_actions(
+                            self.game
+                        )
                         self.show_action_menu = True
 
         return True
@@ -398,13 +439,11 @@ class GameMode:
             self.ai_action_timer -= 1
             if self.ai_action_timer <= 0:
                 # Determine whose turn it is
-                is_player_turn = (self.game.turn == Turn.PLAYER)
+                is_player_turn = self.game.turn == Turn.PLAYER
 
                 # Get AI action
                 action = GameLogic.get_ai_action(
-                    self.game,
-                    self.model,
-                    is_player_perspective=is_player_turn
+                    self.game, self.model, is_player_perspective=is_player_turn
                 )
 
                 # Execute action

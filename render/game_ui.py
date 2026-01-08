@@ -1,9 +1,19 @@
 """Common UI drawing functions for the game."""
 
 import pygame
-from typing import Optional, Dict
+from typing import Optional
 from core.constants import Item
-from render.colors import *
+from render.colors import (
+    DARK_GRAY,
+    BLUE,
+    BLACK,
+    WHITE,
+    GOLD,
+    YELLOW,
+    GRAY,
+    GREEN,
+    RED,
+)
 
 
 class GameUIComponents:
@@ -33,7 +43,7 @@ class GameUIComponents:
             Item.CIGARETTES: "Cigs",
             Item.HANDCUFFS: "Cuffs",
             Item.SAW: "Saw",
-            Item.BEER: "Beer"
+            Item.BEER: "Beer",
         }
 
         # Background
@@ -55,8 +65,15 @@ class GameUIComponents:
         else:
             self.screen.fill(BLACK)
 
-    def draw_entity_section(self, name: str, entity, y_offset: int, color: tuple,
-                           show_items: bool = True, bullet_sequence: list = None):
+    def draw_entity_section(
+        self,
+        name: str,
+        entity,
+        y_offset: int,
+        color: tuple,
+        show_items: bool = True,
+        bullet_sequence: list = None,  # type: ignore
+    ):  # type: ignore
         """Draw entity stats section.
 
         Args:
@@ -114,7 +131,9 @@ class GameUIComponents:
                         y_pos += 40
             else:
                 # Just show count
-                count_text = self.small_font.render(f"{len(entity.items)} items", True, WHITE)
+                count_text = self.small_font.render(
+                    f"{len(entity.items)} items", True, WHITE
+                )
                 self.screen.blit(count_text, (50, y_offset + 110))
         else:
             no_items = self.small_font.render("None", True, GRAY)
@@ -131,10 +150,18 @@ class GameUIComponents:
 
         if entity.known_next and bullet_sequence and len(bullet_sequence) > 0:
             next_bullet = "LIVE" if bullet_sequence[0] == 1 else "BLANK"
-            known = self.small_font.render(f"Known: Next is {next_bullet}", True, YELLOW)
+            known = self.small_font.render(
+                f"Known: Next is {next_bullet}", True, YELLOW
+            )
             self.screen.blit(known, (50, status_y))
 
-    def draw_bullet_info(self, bullet_sequence: list, saw_active: bool, x_offset: int = 550, y_offset: int = 50):
+    def draw_bullet_info(
+        self,
+        bullet_sequence: list,
+        saw_active: bool,
+        x_offset: int = 550,
+        y_offset: int = 50,
+    ):
         """Draw bullet/shotgun information.
 
         Args:
@@ -172,7 +199,13 @@ class GameUIComponents:
             saw_info = self.small_font.render("Next shot: 2x damage", True, YELLOW)
             self.screen.blit(saw_info, (x_offset, info_y + 30))
 
-    def draw_turn_indicator(self, turn_text: str, is_player_turn: bool, x_offset: int = 550, y_offset: int = 350):
+    def draw_turn_indicator(
+        self,
+        turn_text: str,
+        is_player_turn: bool,
+        x_offset: int = 550,
+        y_offset: int = 350,
+    ):
         """Draw turn indicator.
 
         Args:
@@ -209,9 +242,16 @@ class GameUIComponents:
             return timer - 1
         return 0
 
-    def draw_button(self, rect: pygame.Rect, text: str, base_color: tuple,
-                   hover_color: tuple, text_color: tuple = WHITE,
-                   border_color: tuple = WHITE, border_width: int = 3) -> bool:
+    def draw_button(
+        self,
+        rect: pygame.Rect,
+        text: str,
+        base_color: tuple,
+        hover_color: tuple,
+        text_color: tuple = WHITE,
+        border_color: tuple = WHITE,
+        border_width: int = 3,
+    ) -> bool:
         """Draw a button and return if it's hovered.
 
         Args:
@@ -250,5 +290,7 @@ class GameUIComponents:
         stats = self.normal_font.render(stats_text, True, GOLD)
         self.screen.blit(stats, (20, 10))
 
-        round_text = self.small_font.render(f"Round {round_num} | Subround {sub_round}", True, WHITE)
+        round_text = self.small_font.render(
+            f"Round {round_num} | Subround {sub_round}", True, WHITE
+        )
         self.screen.blit(round_text, (self.WIDTH - 250, 10))

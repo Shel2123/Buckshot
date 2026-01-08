@@ -1,8 +1,8 @@
 """Main menu selection screen."""
 
 import pygame
-from typing import Optional, Callable
-from render.colors import *
+from typing import Optional
+from render.colors import DARK_GRAY, WHITE, BLACK, GOLD, BLUE, DARK_RED
 
 
 class MenuScreen:
@@ -29,8 +29,12 @@ class MenuScreen:
         self.background = self._load_background()
 
         # Load character images
-        self.player_image = self._load_image("core/assets/images/player_pixel.png", (120, 120))
-        self.dealer_image = self._load_image("core/assets/images/dealer_pixel.png", (120, 120))
+        self.player_image = self._load_image(
+            "core/assets/images/player_pixel.png", (120, 120)
+        )
+        self.dealer_image = self._load_image(
+            "core/assets/images/dealer_pixel.png", (120, 120)
+        )
 
     def _load_background(self) -> Optional[pygame.Surface]:
         """Load background image if available."""
@@ -56,7 +60,9 @@ class MenuScreen:
         except Exception:
             return None
 
-    def _create_placeholder_image(self, size: tuple, color: tuple, text: str) -> pygame.Surface:
+    def _create_placeholder_image(
+        self, size: tuple, color: tuple, text: str
+    ) -> pygame.Surface:
         """Create a placeholder image with text.
 
         Args:
@@ -121,7 +127,7 @@ class MenuScreen:
             "Challenge the champion AI",
             left_image=self.player_image,
             right_image=self.dealer_image,
-            mouse_pos=mouse_pos
+            mouse_pos=mouse_pos,
         )
 
         # AI vs AI box (dealer vs dealer)
@@ -132,7 +138,7 @@ class MenuScreen:
             "Watch AI agents battle",
             left_image=self.dealer_image,
             right_image=self.dealer_image,
-            mouse_pos=mouse_pos
+            mouse_pos=mouse_pos,
         )
 
         # Quit button
@@ -142,9 +148,15 @@ class MenuScreen:
         pygame.display.flip()
         return play_rect, watch_rect, quit_rect
 
-    def _draw_mode_box(self, rect: pygame.Rect, title: str, description: str,
-                      left_image: Optional[pygame.Surface], right_image: Optional[pygame.Surface],
-                      mouse_pos: tuple):
+    def _draw_mode_box(
+        self,
+        rect: pygame.Rect,
+        title: str,
+        description: str,
+        left_image: Optional[pygame.Surface],
+        right_image: Optional[pygame.Surface],
+        mouse_pos: tuple,
+    ):
         """Draw a game mode selection box with character images and VS.
 
         Args:
@@ -162,7 +174,9 @@ class MenuScreen:
         pygame.draw.rect(self.screen, GOLD if is_hovered else WHITE, rect, 4)
 
         # Title
-        title_surface = self.header_font.render(title, True, GOLD if is_hovered else WHITE)
+        title_surface = self.header_font.render(
+            title, True, GOLD if is_hovered else WHITE
+        )
         title_rect = title_surface.get_rect(centerx=rect.centerx, top=rect.top + 15)
         self.screen.blit(title_surface, title_rect)
 
@@ -173,17 +187,23 @@ class MenuScreen:
         # Calculate positions for left image, VS text, and right image
         vs_font = pygame.font.Font(None, 72)
         vs_text = vs_font.render("VS", True, GOLD if is_hovered else WHITE)
-        vs_rect = vs_text.get_rect(center=(rect.centerx, content_y + content_height // 2))
+        vs_rect = vs_text.get_rect(
+            center=(rect.centerx, content_y + content_height // 2)
+        )
 
         # Left character image
         if left_image:
             left_x = rect.centerx - 100  # Position left of center
-            left_rect = left_image.get_rect(center=(left_x, content_y + content_height // 2))
+            left_rect = left_image.get_rect(
+                center=(left_x, content_y + content_height // 2)
+            )
             self.screen.blit(left_image, left_rect)
         else:
             # Placeholder for left
             placeholder = self._create_placeholder_image((100, 100), DARK_GRAY, "?")
-            left_rect = placeholder.get_rect(center=(rect.centerx - 100, content_y + content_height // 2))
+            left_rect = placeholder.get_rect(
+                center=(rect.centerx - 100, content_y + content_height // 2)
+            )
             self.screen.blit(placeholder, left_rect)
 
         # VS text in the middle
@@ -192,12 +212,16 @@ class MenuScreen:
         # Right character image
         if right_image:
             right_x = rect.centerx + 100  # Position right of center
-            right_rect = right_image.get_rect(center=(right_x, content_y + content_height // 2))
+            right_rect = right_image.get_rect(
+                center=(right_x, content_y + content_height // 2)
+            )
             self.screen.blit(right_image, right_rect)
         else:
             # Placeholder for right
             placeholder = self._create_placeholder_image((100, 100), DARK_GRAY, "?")
-            right_rect = placeholder.get_rect(center=(rect.centerx + 100, content_y + content_height // 2))
+            right_rect = placeholder.get_rect(
+                center=(rect.centerx + 100, content_y + content_height // 2)
+            )
             self.screen.blit(placeholder, right_rect)
 
         # Description
@@ -222,8 +246,9 @@ class MenuScreen:
         text_rect = text.get_rect(center=rect.center)
         self.screen.blit(text, text_rect)
 
-    def handle_events(self, play_rect: pygame.Rect, watch_rect: pygame.Rect,
-                     quit_rect: pygame.Rect) -> Optional[str]:
+    def handle_events(
+        self, play_rect: pygame.Rect, watch_rect: pygame.Rect, quit_rect: pygame.Rect
+    ) -> Optional[str]:
         """Handle menu events.
 
         Args:

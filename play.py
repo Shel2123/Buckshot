@@ -1,14 +1,15 @@
 import os
 import warnings
-warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*")  # Shut up pygame
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "1"  # Shut up pygame
-
 import pygame
 from sb3_contrib import MaskablePPO
-
 from render.menu import MenuScreen
 from render.game_mode import GameMode
 from render.game_state import PVP_MODE, WATCH_MODE
+
+warnings.filterwarnings(
+    "ignore", message=".*pkg_resources is deprecated.*"
+)  # Shut up pygame
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"  # Shut up pygame
 
 
 class BuckshotRouletteApp:
@@ -52,10 +53,7 @@ class BuckshotRouletteApp:
         """Start Player vs AI mode."""
         pygame.display.set_caption("Buckshot Roulette - vs Champion")
         self.current_mode = GameMode(
-            self.screen,
-            self.model,
-            PVP_MODE,
-            self._on_back_to_menu
+            self.screen, self.model, PVP_MODE, self._on_back_to_menu
         )
         self.current_screen = "game"
 
@@ -63,10 +61,7 @@ class BuckshotRouletteApp:
         """Start AI vs AI watch mode."""
         pygame.display.set_caption("Buckshot Roulette - AI Self-Play")
         self.current_mode = GameMode(
-            self.screen,
-            self.model,
-            WATCH_MODE,
-            self._on_back_to_menu
+            self.screen, self.model, WATCH_MODE, self._on_back_to_menu
         )
         self.current_screen = "game"
 
@@ -91,7 +86,9 @@ class BuckshotRouletteApp:
                 # Game mode
                 if self.current_mode:
                     running = self.current_mode.handle_events()
-                    if self.current_screen == "game":  # Check if still in game after event handling
+                    if (
+                        self.current_screen == "game"
+                    ):  # Check if still in game after event handling
                         self.current_mode.update()
                         self.current_mode.draw()
                 else:

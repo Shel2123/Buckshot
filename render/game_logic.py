@@ -5,14 +5,16 @@ from typing import Optional
 from sb3_contrib import MaskablePPO
 
 from core.game import BuckshotRouletteGame
-from core.constants import GameAction, Item, Turn
+from core.constants import GameAction, Item
 
 
 class GameLogic:
     """Handles game logic operations like building observations and getting AI actions."""
 
     @staticmethod
-    def build_observation(game: BuckshotRouletteGame, is_player_perspective: bool) -> np.ndarray:
+    def build_observation(
+        game: BuckshotRouletteGame, is_player_perspective: bool
+    ) -> np.ndarray:
         """Build observation array for AI model.
 
         Args:
@@ -63,8 +65,9 @@ class GameLogic:
         return obs
 
     @staticmethod
-    def get_ai_action(game: BuckshotRouletteGame, model: MaskablePPO,
-                     is_player_perspective: bool) -> GameAction:
+    def get_ai_action(
+        game: BuckshotRouletteGame, model: MaskablePPO, is_player_perspective: bool
+    ) -> GameAction:
         """Get action from AI model.
 
         Args:
@@ -77,12 +80,18 @@ class GameLogic:
         """
         obs = GameLogic.build_observation(game, is_player_perspective)
         action_mask = game.get_valid_actions_mask()
-        action_idx, _ = model.predict(obs, action_masks=action_mask, deterministic=False)
+        action_idx, _ = model.predict(
+            obs, action_masks=action_mask, deterministic=False
+        )
         return list(GameAction)[int(action_idx)]
 
     @staticmethod
-    def format_action_message(actor_name: str, target_name: str, action: GameAction,
-                             ejected_bullet: Optional[int] = None) -> str:
+    def format_action_message(
+        actor_name: str,
+        target_name: str,
+        action: GameAction,
+        ejected_bullet: Optional[int] = None,
+    ) -> str:
         """Format action as a message string.
 
         Args:
@@ -114,7 +123,9 @@ class GameLogic:
         return ""
 
     @staticmethod
-    def get_action_description(action: GameAction, is_shooting_dealer: bool = True) -> str:
+    def get_action_description(
+        action: GameAction, is_shooting_dealer: bool = True, give_hints: bool = False
+    ) -> str:
         """Get human-readable action description.
 
         Args:
@@ -125,13 +136,20 @@ class GameLogic:
             Human-readable description
         """
         descriptions = {
-            GameAction.SHOOT_SELF: "Shoot Yourself",
-            GameAction.SHOOT_TARGET: "Shoot Dealer" if is_shooting_dealer else "Shoot Opponent",
-            GameAction.USE_GLASS: "Use Glass",
-            GameAction.USE_CIGARETTES: "Use Cigarettes",
-            GameAction.USE_HANDCUFFS: "Use Handcuffs",
-            GameAction.USE_SAW: "Use Saw",
+            GameAction.SHOOT_SELF: "Shoot Yourself"
+            + " -- Skip dealer's turn if blank" * give_hints,
+            GameAction.SHOOT_TARGET: "Shoot Dealer"
+            if is_shooting_dealer
+            else "Shoot Opponent",
+            GameAction.USE_GLASS: "Use Glass"
+            + " -- Reveals the next shell" * give_hints,
+            GameAction.USE_CIGARETTES: "Use Cigarettes" + " -- Heals 1 hp" * give_hints,
+            GameAction.USE_HANDCUFFS: "Use Handcuffs"
+            + " -- Skip opponent's turn" * give_hints,
+            GameAction.USE_SAW: "Use Saw"
+            + " -- Deal double damage next shot" * give_hints,
             GameAction.USE_BEER: "Use Beer"
+            + " -- Ejects shell from the chamber" * give_hints,
         }
         return descriptions.get(action, str(action))
 

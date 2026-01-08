@@ -1,12 +1,12 @@
 """Game state management and configuration."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class GameModeConfig:
     """Configuration for different game modes."""
+
     is_pvp: bool  # True = Player vs AI, False = AI vs AI
 
     # Display names
@@ -71,7 +71,9 @@ class GameStats:
             total_games = self.wins + self.losses
             if total_games > 0:
                 win_pct = (self.wins / total_games) * 100
-                return f"Wins: {self.wins} | Losses: {self.losses} | Win%: {win_pct:.1f}%"
+                return (
+                    f"Wins: {self.wins} | Losses: {self.losses} | Win%: {win_pct:.1f}%"
+                )
             return "Wins: 0 | Losses: 0 | Win%: 0.0%"
         else:
             total_games = self.player_wins + self.dealer_wins + self.draws
@@ -89,7 +91,7 @@ PVP_MODE = GameModeConfig(
     dealer_name="CHAMPION (Dealer)",
     track_player_wins=True,
     allow_player_input=True,
-    show_dealer_items=True
+    show_dealer_items=True,
 )
 
 WATCH_MODE = GameModeConfig(
@@ -98,5 +100,5 @@ WATCH_MODE = GameModeConfig(
     dealer_name="DEALER (AI)",
     track_player_wins=False,
     allow_player_input=False,
-    show_dealer_items=True
+    show_dealer_items=True,
 )

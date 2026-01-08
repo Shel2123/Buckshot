@@ -1,5 +1,14 @@
 import numpy as np
-from core.constants import *
+from core.constants import (
+    Turn,
+    SubroundCombo,
+    Item,
+    ITEMS,
+    GameAction,
+    GAME_ACTIONS,
+    ACTION_MAP_INV,
+    StepResult,
+)
 
 
 class Player:
@@ -15,7 +24,7 @@ class Player:
         for _ in range(num_items):
             if len(self.items) >= self.max_inventory_capacity:
                 return
-            self.items.append(self.rng.choice(ITEMS))
+            self.items.append(self.rng.choice(ITEMS))  # type: ignore
 
 
 class BuckshotRouletteGame:
@@ -23,23 +32,24 @@ class BuckshotRouletteGame:
         self.rng = np.random.default_rng(rng_seed)
         self.round: int = 1
         self.sub_round: int = 1
-        self.turn: Turn = self.rng.choice([Turn.PLAYER, Turn.DEALER])
+        self.turn: Turn = self.rng.choice([Turn.PLAYER, Turn.DEALER])  # type: ignore
         self.player: Player = Player(self.rng)
         self.dealer: Player = Player(self.rng)
         self.saw_active: bool = False
         self.max_hp = 5
         self.max_bullets = 8
         self.bullet_sequence: list[int] = self.generate_bullet_sequence()
-        
 
-    def generate_bullet_sequence(self, num_lives: int = 1, num_blanks: int = 1) -> list[int]:
+    def generate_bullet_sequence(
+        self, num_lives: int = 1, num_blanks: int = 1
+    ) -> list[int]:
         seq = [0] * num_blanks + [1] * num_lives
         return self.rng.permutation(seq).tolist()
 
     def clear_items(self) -> None:
         self.player.items = []
         self.dealer.items = []
-    
+
     def give_items(self, num: int) -> None:
         self.player.get_items(num)
         self.dealer.get_items(num)
@@ -50,18 +60,18 @@ class BuckshotRouletteGame:
         if bullet:
             target.hp = max(target.hp - damage, 0)
             self.switch_turns()
-    
+
     def process_shooting_target(self, target: Player):
         damage = 2 if self.saw_active else 1
         bullet = self.bullet_sequence.pop(0)
         if bullet:
             target.hp = max(target.hp - damage, 0)
         self.switch_turns()
-    
+
     def unhandcuff_both(self):
         self.player.handcuff_strength = 0
         self.dealer.handcuff_strength = 0
-        
+
     def switch_turns(self):  # Stupid fucking logic
         if self.turn == Turn.PLAYER:
             if self.dealer.handcuff_strength < 2:
@@ -69,7 +79,7 @@ class BuckshotRouletteGame:
                 self.dealer.handcuff_strength = 0
             else:
                 self.turn = Turn.PLAYER
-                self.dealer.handcuff_strength = 1        
+                self.dealer.handcuff_strength = 1
         elif self.turn == Turn.DEALER:
             if self.player.handcuff_strength < 2:
                 self.turn = Turn.PLAYER
@@ -77,24 +87,26 @@ class BuckshotRouletteGame:
             else:
                 self.turn = Turn.DEALER
                 self.player.handcuff_strength = 1
-    
+
     def clear_known_bullets(self):
         self.player.known_next = False
         self.dealer.known_next = False
-    
+
     def start_new_subround(self):
         self.sub_round += 1
         sub_config = self._generate_combo()
 
         self.unhandcuff_both()
         self.give_items(sub_config.num_items)
-        self.turn = self.rng.choice([Turn.PLAYER, Turn.DEALER])
-        self.bullet_sequence = self.generate_bullet_sequence(sub_config.lives, sub_config.blanks)
+        self.turn = self.rng.choice([Turn.PLAYER, Turn.DEALER])  # type: ignore
+        self.bullet_sequence = self.generate_bullet_sequence(
+            sub_config.lives, sub_config.blanks
+        )
         self.clear_known_bullets()
-    
+
     def _get_opponent(self, player: Player) -> Player:
         return self.dealer if player is self.player else self.player
-    
+
     def _generate_combo(self) -> SubroundCombo:
         match self.sub_round:
             case 1:
@@ -112,16 +124,16 @@ class BuckshotRouletteGame:
                 num_bullets = self.rng.integers(3, self.max_bullets)
                 lives_percentage = self.rng.uniform(0.4, 0.8)
                 probs = [
-                    0.5, # For 1 item
-                    0.35, # For 2 items
-                    0.15 # For 3 items
+                    0.5,  # For 1 item
+                    0.35,  # For 2 items
+                    0.15,  # For 3 items
                 ]
                 num_items = self.rng.choice([1, 2, 3], p=probs)
-            
+
         lives = int(np.floor(num_bullets * lives_percentage))
         lives = max(1, min(lives, num_bullets - 1))
         blanks = num_bullets - lives
-        return SubroundCombo(num_items, hp, blanks, lives)
+        return SubroundCombo(num_items, hp, blanks, lives)  # type: ignore
 
     def start_new_round(self):
         self.round += 1
@@ -132,14 +144,14 @@ class BuckshotRouletteGame:
         self.player.hp = self.round_config.starting_hp
         self.dealer.hp = self.round_config.starting_hp
         self.start_new_subround()
-        
+
     def prepare_for_next_turn(self):
-        if len(self.bullet_sequence) == 0: 
+        if len(self.bullet_sequence) == 0:
             self.start_new_subround()
 
     def process_action_result(self, action: GameAction):
         initiator, target = self.get_current_actor()
-            
+
         match action:
             case GameAction.SHOOT_TARGET:
                 self.process_shooting_target(target)
@@ -154,10 +166,10 @@ class BuckshotRouletteGame:
                 initiator.items.remove(Item.GLASS)
             case GameAction.USE_CIGARETTES:
                 if initiator.hp < self.max_hp:
-                    initiator.hp += 1 
+                    initiator.hp += 1
                 initiator.items.remove(Item.CIGARETTES)
             case GameAction.USE_HANDCUFFS:
-                target.handcuff_strength = 2 
+                target.handcuff_strength = 2
                 initiator.items.remove(Item.HANDCUFFS)
             case GameAction.USE_SAW:
                 self.saw_active = True
@@ -166,9 +178,9 @@ class BuckshotRouletteGame:
                 self.bullet_sequence.pop(0)
                 self.clear_known_bullets()
                 initiator.items.remove(Item.BEER)
-        
+
         self.prepare_for_next_turn()
-    
+
     def get_current_actor(self) -> tuple[Player, Player]:
         if self.turn == Turn.PLAYER:
             initiator, target = self.player, self.dealer
@@ -177,19 +189,14 @@ class BuckshotRouletteGame:
         return initiator, target
 
     def get_valid_actions_mask(self) -> np.ndarray:
-        """
-        Efficiently generates the action mask without any loops.
-        Returns a mask where 1 = valid action, 0 = invalid.
-        """
         mask = np.zeros(len(GAME_ACTIONS), dtype=np.int8)
         actor, target = self.get_current_actor()
         items = actor.items
 
-        # Always-valid actions
+        # Shoot self and Shoot Target are always valid.
         mask[ACTION_MAP_INV[GameAction.SHOOT_SELF]] = 1
         mask[ACTION_MAP_INV[GameAction.SHOOT_TARGET]] = 1
 
-        # Item-based actions (fast 'in' check)
         if Item.BEER in items:
             mask[ACTION_MAP_INV[GameAction.USE_BEER]] = 1
 
@@ -209,7 +216,7 @@ class BuckshotRouletteGame:
 
     def check_action_valid(self, player: Player, action: GameAction) -> bool:
         match action:
-            case (GameAction.SHOOT_SELF | GameAction.SHOOT_TARGET):
+            case GameAction.SHOOT_SELF | GameAction.SHOOT_TARGET:
                 return True
             case GameAction.USE_BEER:
                 return Item.BEER in player.items
@@ -218,12 +225,15 @@ class BuckshotRouletteGame:
             case GameAction.USE_GLASS:
                 return Item.GLASS in player.items
             case GameAction.USE_HANDCUFFS:
-                return Item.HANDCUFFS in player.items and self._get_opponent(player).handcuff_strength == 0
+                return (
+                    Item.HANDCUFFS in player.items
+                    and self._get_opponent(player).handcuff_strength == 0
+                )
             case GameAction.USE_SAW:
                 return Item.SAW in player.items and not self.saw_active
             case _:
                 return False
-            
+
     def step(self, action: GameAction) -> StepResult:
         """Apply an action and return structured step information."""
         initiator, target = self.get_current_actor()
