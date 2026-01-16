@@ -32,7 +32,9 @@ Pretty self-explanatory. If you want to start from scratch, delete the agent/mod
 
 `python -m converter`
 
-Yup, this one is pretty self-explanatory too.
+Converts the model to .onnx format.
+Ensure that you have a model in:
+`agent/models/champion.zip`
 
 # Important notice:
 

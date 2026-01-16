@@ -12,8 +12,6 @@ model = MaskablePPO.load(model_path)
 policy = model.policy.to("cpu")
 
 # 3. Define Input Dimensions
-# Replace these with your actual observation space shape
-# Example: (1, 64) for a flat vector or (1, 3, 64, 64) for an image
 obs_shape = (1, *get_obs_shape(model.observation_space))
 dummy_input = torch.randn(obs_shape)  # type: ignore
 
