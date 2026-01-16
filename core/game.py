@@ -235,7 +235,7 @@ class BuckshotRouletteGame:
                 return False
 
     def step(self, action: GameAction) -> StepResult:
-        """Apply an action and return structured step information."""
+        """Apply an action and return structured step result"""
         initiator, target = self.get_current_actor()
 
         prev_bot_hp, prev_target_hp = initiator.hp, target.hp

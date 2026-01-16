@@ -7,22 +7,22 @@ from dataclasses import dataclass
 class TrainingConfig:
     total_timesteps_per_generation: int = 100_000
     learning_rate: float = 1e-4
-    n_steps: int = 4096
-    batch_size: int = 256
+    n_steps: int = 8192
+    batch_size: int = 512
     n_epochs: int = 4
     gamma: float = 0.99
     gae_lambda: float = 0.95
-    clip_range: float = 0.2
+    clip_range: float = 0.1
     ent_coef: float = 0.01
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
-
     n_envs: int = 16
 
     # Evaluation Settings
-    eval_random_episodes: int = 2500
+    eval_random_episodes: int = 5000
     eval_champion_episodes: int = 25000
-    win_threshold: float = 0.5025  # 50.25% required to become the new king.
+    random_win_threshold = 0.925
+    win_threshold: float = 0.503  # 50.35% required to become the new king.
     use_paired_evaluation: bool = True  # Use Common Random Numbers (CRN)
 
     # Opponent Pool Settings

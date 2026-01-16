@@ -1,7 +1,9 @@
 import time
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Optional, List, Dict
+from multiprocessing import Pool, cpu_count
 
 import numpy as np
 from tqdm import tqdm
@@ -199,6 +201,91 @@ def _run_eval_episode(env, obs, model, deterministic):
         step_count += 1
 
 
+def _eval_batch(args):
+    """Worker function for parallel evaluation."""
+    model_path, opponent_path, start_seed, batch_size, deterministic, use_paired = args
+
+    model = MaskablePPO.load(model_path, device="cpu")
+    opponent_policy = load_policy_for_env(opponent_path) if opponent_path else None
+    wins, losses, draws = 0, 0, 0
+
+    if use_paired:
+        env_p = BuckshotRouletteEnv(opponent_policy=opponent_policy, force_agent_as_player=True)
+        env_d = BuckshotRouletteEnv(opponent_policy=opponent_policy, force_agent_as_player=False)
+
+        for i in range(batch_size):
+            pair_seed = start_seed + i
+            for env in [env_p, env_d]:
+                obs, _ = env.reset(seed=pair_seed)
+                _run_eval_episode(env, obs, model, deterministic)
+                if env.game.player.hp <= 0 and env.game.dealer.hp <= 0:
+                    draws += 1
+                elif env._agent_is_player:
+                    wins += 1 if env.game.dealer.hp <= 0 else 0
+                    losses += 1 if env.game.dealer.hp > 0 else 0
+                else:
+                    wins += 1 if env.game.player.hp <= 0 else 0
+                    losses += 1 if env.game.player.hp > 0 else 0
+    else:
+        env = BuckshotRouletteEnv(opponent_policy=opponent_policy)
+        for i in range(batch_size):
+            obs, _ = env.reset(seed=start_seed + i)
+            _run_eval_episode(env, obs, model, deterministic)
+            if env.game.player.hp <= 0 and env.game.dealer.hp <= 0:
+                draws += 1
+            elif env._agent_is_player:
+                wins += 1 if env.game.dealer.hp <= 0 else 0
+                losses += 1 if env.game.dealer.hp > 0 else 0
+            else:
+                wins += 1 if env.game.player.hp <= 0 else 0
+                losses += 1 if env.game.player.hp > 0 else 0
+
+    return wins, losses, draws
+
+
+def evaluate_model_parallel(
+    model_path: str,
+    opponent_path: Optional[str] = None,
+    n_episodes: int = 1000,
+    deterministic: bool = True,
+    seed: int = 0,
+    use_paired_games: bool = False,
+    n_workers: Optional[int] = None,
+) -> dict:
+    """Parallel evaluation using multiprocessing with live progress bar."""
+    n_workers = n_workers or cpu_count()
+
+    # Use smaller batches (100 games each) for smoother progress updates
+    games_per_batch = 100
+    n_batches = max(n_workers, (n_episodes + games_per_batch - 1) // games_per_batch)
+    batch_size = n_episodes // n_batches
+    remainder = n_episodes % n_batches
+
+    args = []
+    current_seed = seed
+    for i in range(n_batches):
+        size = batch_size + (1 if i < remainder else 0)
+        if size > 0:
+            args.append((model_path, opponent_path, current_seed, size, deterministic, use_paired_games))
+            current_seed += size * (2 if use_paired_games else 1)
+
+    wins, losses, draws = 0, 0, 0
+    with Pool(n_workers) as pool:
+        for result in tqdm(pool.imap_unordered(_eval_batch, args), total=len(args), desc="Evaluating", leave=False):
+            wins += result[0]
+            losses += result[1]
+            draws += result[2]
+
+    total = wins + losses + draws
+    return {
+        "wins": wins,
+        "losses": losses,
+        "draws": draws,
+        "win_rate": wins / total if total > 0 else 0.0,
+        "total_episodes": total,
+    }
+
+
 def evaluate_challenger(
     challenger: MaskablePPO,
     champion_path: Optional[Path],
@@ -212,52 +299,58 @@ def evaluate_challenger(
     print(f"\n{'=' * 60}\nGENERATION {generation}: Evaluation Arena\n{'=' * 60}")
     eval_seed = config.seed + generation * 10000
 
-    # Match 1: Baseline Verification
-    print("\n Match 1: Challenger vs Random Opponent")
-    t0 = time.time()
-    random_results = evaluate_model(
-        challenger,
-        opponent_policy=None,
-        n_episodes=config.eval_random_episodes,
-        deterministic=True,
-        seed=eval_seed,
-        use_paired_games=config.use_paired_evaluation,
-    )
-    print(
-        f"  Wins: {random_results['wins']}/{random_results['total_episodes']} "
-        f"({random_results['win_rate']:.2%}) in {time.time() - t0:.2f}s"
-    )
+    # Save challenger to temp file for parallel eval
+    with tempfile.TemporaryDirectory() as tmpdir:
+        challenger_path = f"{tmpdir}/challenger.zip"
+        challenger.save(challenger_path)
 
-    if random_results["win_rate"] < 0.45:
-        print("  Failed baseline check (win rate < 45%).")
-        return False
-
-    # Match 2: Championship Fight
-    if champion_path is None:
-        print("\n  No existing champion - Challenger promoted by default!")
-        return True
-
-    print("\n Match 2: Challenger vs Champion")
-    t0 = time.time()
-    champion_policy = load_policy_for_env(str(champion_path), deterministic=True)
-    champion_results = evaluate_model(
-        challenger,
-        opponent_policy=champion_policy,
-        n_episodes=config.eval_champion_episodes,
-        deterministic=True,
-        seed=eval_seed + 100000,
-        use_paired_games=config.use_paired_evaluation,
-    )
-    print(
-        f"  Wins: {champion_results['wins']}/{champion_results['total_episodes']} "
-        f"({champion_results['win_rate']:.2%}) in {time.time() - t0:.2f}s"
-    )
-
-    if champion_results["win_rate"] >= config.win_threshold:
-        print(
-            f" Down with the king type shit. Challenger wins! ({champion_results['win_rate']:.2%} >= {config.win_threshold:.2%})"
+        # Match 1: Baseline Verification
+        print("\n Match 1: Challenger vs Random Opponent")
+        t0 = time.time()
+        random_results = evaluate_model_parallel(
+            challenger_path,
+            opponent_path=None,
+            n_episodes=config.eval_random_episodes,
+            deterministic=True,
+            seed=eval_seed,
+            use_paired_games=config.use_paired_evaluation,
         )
-        return True
-    else:
-        print("Challenger loses. What a bummer")
-        return False
+        print(
+            f"  Wins: {random_results['wins']}/{random_results['total_episodes']} "
+            f"({random_results['win_rate']:.2%}) in {time.time() - t0:.2f}s"
+        )
+
+        if random_results["win_rate"] < config.random_win_threshold:
+            print(
+                f"  Failed baseline check (win rate < {config.random_win_threshold * 100}%)."
+            )
+            return False
+
+        # Match 2: Championship Fight
+        if champion_path is None:
+            print("\n  No existing champion - Challenger promoted by default!")
+            return True
+
+        print("\n Match 2: Challenger vs Champion")
+        t0 = time.time()
+        champion_results = evaluate_model_parallel(
+            challenger_path,
+            opponent_path=str(champion_path),
+            n_episodes=config.eval_champion_episodes,
+            deterministic=True,
+            seed=eval_seed + 100000,
+            use_paired_games=config.use_paired_evaluation,
+        )
+        print(
+            f"  Wins: {champion_results['wins']}/{champion_results['total_episodes']} "
+            f"({champion_results['win_rate']:.2%}) in {time.time() - t0:.2f}s"
+        )
+
+        if champion_results["win_rate"] >= config.win_threshold:
+            print(
+                f" Down with the king type shit. Challenger wins! ({champion_results['win_rate']:.2%} >= {config.win_threshold:.2%})"
+            )
+            return True
+        else:
+            print("Challenger loses. What a bummer")
+            return False
